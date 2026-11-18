@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shift {{ window.shift }} · {{ window.shift_date }} · Primary Crushing</title>
+<style>
+  :root { --ink: #1f2933; --muted: #616e7c; --line: #e4e7eb; --ok: #2e8b57; --warn: #b58100; --bad: #c53030; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); margin: 0; background: #f5f7fa; font-size: 14px; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 28px 24px 40px; background: #fff; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--ink); padding-bottom: 10px; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 26px 0 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .kpi .v { font-size: 26px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 12px; color: var(--muted); }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  td { border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  td.n, th.n { text-align: right; }
+  img { max-width: 100%; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: #eef1f5; }
+  .tag.HIGH-HIGH { background: #fde2e2; color: var(--bad); } .tag.HIGH { background: #fdf3d7; color: var(--warn); }
+  .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
+  footer { margin-top: 28px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+  @media (max-width: 720px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } }
+  @media print { body { background: #fff; } .page { padding: 0; } h2 { break-after: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <div class="muted">Primary Crushing · Shift Report</div>
+      <h1>Shift {{ window.shift }} · {{ window.shift_date.strftime('%A %d %B %Y') }}</h1>
+    </div>
+    <div class="muted">{{ start_local.strftime('%H:%M') }} – {{ end_local.strftime('%H:%M') }} (SAST)
+      {% if window.partial %}<br><span class="tag HIGH">Partial: data covers only part of this shift</span>{% endif %}</div>
+  </header>
+
+  {% set cr = crusher %}
+  {% if not cr %}<p class="empty">No crusher data for this shift.</p>{% else %}
+  <section class="kpis">
+    {% set a = (cr.availability or 0) | float %}
+    <div class="kpi"><div class="l">Crusher availability</div>
+      <div class="v {{ 'ok' if a >= 0.9 else 'warn' if a >= 0.8 else 'bad' }}">{{ cr.availability | pct }}</div>
+      <div class="l">target 90%</div></div>
+    <div class="kpi"><div class="l">Tonnes crushed</div><div class="v">{{ '{:,.0f}'.format((cr.tonnes or 0) | float) }}</div>
+      <div class="l">{{ '{:,.0f}'.format(((cr.tonnes or 0) | float) / ((cr.run_hours or 1) | float)) }} t/h while running</div></div>
+    <div class="kpi"><div class="l">Downtime</div><div class="v">{{ '{:.0f}'.format(((cr.fault_minutes or 0) | float) + ((cr.stopped_minutes or 0) | float)) }} min</div>
+      <div class="l">{{ cr.fault_minutes }} faulted · {{ cr.stopped_minutes }} stopped</div></div>
+    <div class="kpi"><div class="l">Alarms raised</div><div class="v {{ 'bad' if alarms else 'ok' }}">{{ alarms | length }}</div>
+      <div class="l">{{ downtime | length }} downtime events</div></div>
+  </section>
+  {% endif %}
+
+  <h2>Equipment state</h2>
+  <img src="{{ charts.timeline }}" alt="Equipment state timeline">
+  <table style="margin-top:8px">
+    <tr><th>Equipment</th><th class="n">Availability</th><th class="n">Run hours</th><th class="n">Faulted (min)</th><th class="n">Stopped (min)</th></tr>
+    {% for k in kpis %}
+    <tr><td>{{ k.equipment }}</td><td class="n">{{ k.availability | pct }}</td><td class="n">{{ k.run_hours }}</td>
+        <td class="n">{{ k.fault_minutes }}</td><td class="n">{{ k.stopped_minutes }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Downtime</h2>
+  {% if downtime %}
+  <div class="grid2">
+    <div>{% if charts.pareto %}<img src="{{ charts.pareto }}" alt="Downtime by reason">{% endif %}</div>
+    <table>
+      <tr><th>From</th><th>To</th><th>Equipment</th><th>Reason</th><th class="n">Min</th></tr>
+      {% for d in downtime %}
+      <tr><td>{{ d.start_ts | local }}</td><td>{{ d.end_ts | local }}</td><td>{{ d.equipment }}</td>
+          <td>{{ d.reason }} <span class="muted">({{ d.category }})</span></td><td class="n">{{ d.minutes }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}<div class="empty">No faults this shift.</div>{% endif %}
+
+  <h2>Alarms</h2>
+  {% if alarms %}
+  <table>
+    <tr><th>Time</th><th>Tag</th><th>Severity</th><th class="n">Value (1-min avg)</th><th class="n">Limit</th></tr>
+    {% for al in alarms %}
+    <tr><td>{{ al.raised_at | local }}</td><td>{{ al.tag }}</td><td><span class="tag {{ al.severity }}">{{ al.severity }}</span></td>
+        <td class="n">{{ al.value }}</td><td class="n">{{ al.high_high if al.severity == 'HIGH-HIGH' else al.high }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No alarms this shift.</div>{% endif %}
+
+  <h2>Process trends</h2>
+  <div class="grid2">
+    {% for img in charts.trends %}<img src="{{ img }}" alt="Process trend">{% endfor %}
+  </div>
+
+  <footer>Generated {{ generated }} from plant historian data (OPC UA → PostgreSQL). One-minute averages; alarm limits from plant.alarm_limits.</footer>
+</div>
+</body>
+</html>
