@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plantdata"
+version = "0.1.0"
+description = "OPC UA plant data pipeline: simulator, collector, PostgreSQL analytics and shift reports"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Siyanda Ngqoba"}]
+dependencies = [
+    "asyncua>=1.1",
+    "psycopg[binary]>=3.1",
+    "PyYAML>=6",
+    "matplotlib>=3.8",
+    "Jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
+
+[project.scripts]
+plant-sim = "plantdata.sim.server:main"
+plant-collector = "plantdata.collector.collector:main"
+plant-backfill = "plantdata.sim.backfill:main"
+plant-report = "plantdata.report.shift_report:main"
+
+[tool.setuptools.packages.find]
+include = ["plantdata*"]
+
+[tool.setuptools.package-data]
+plantdata = ["report/templates/*.html", "sql/*.sql"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning"]
