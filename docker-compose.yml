@@ -1,0 +1,54 @@
+# docker compose up --build
+#   db         PostgreSQL (host port 5434)
+#   simulator  OPC UA server, opc.tcp://localhost:4840/plant/ (open it in UaExpert to browse)
+#   backfill   loads 72 hours of history so reports have data straight away, then exits
+#   collector  OPC UA -> PostgreSQL, live
+# Then: docker compose run --rm report     (writes ./reports/shift_<date>_<shift>.html)
+x-app: &app
+  build: .
+  depends_on:
+    db: { condition: service_healthy }
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: plant
+      POSTGRES_PASSWORD: plant
+      POSTGRES_DB: plant
+    ports: ["5434:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plant"]
+      interval: 5s
+      retries: 20
+
+  simulator:
+    build: .
+    command: ["plant-sim", "--endpoint", "opc.tcp://0.0.0.0:4840/plant/", "--time-scale", "${TIME_SCALE:-1}"]
+    ports: ["4840:4840"]
+
+  backfill:
+    <<: *app
+    command: ["plant-backfill", "--config", "config/docker.yaml", "--hours", "72", "--seed", "42"]
+    restart: "no"
+
+  collector:
+    <<: *app
+    command: ["plant-collector", "--config", "config/docker.yaml"]
+    depends_on:
+      db: { condition: service_healthy }
+      simulator: { condition: service_started }
+      backfill: { condition: service_completed_successfully }
+    volumes: [buffer:/data]
+    restart: unless-stopped
+
+  report:
+    <<: *app
+    command: ["plant-report", "--database-url", "postgresql://plant:plant@db:5432/plant", "--out", "reports"]
+    volumes: ["./reports:/app/reports"]
+    profiles: ["tools"]
+
+volumes:
+  pgdata:
+  buffer:

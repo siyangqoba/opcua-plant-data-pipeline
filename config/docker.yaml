@@ -1,0 +1,38 @@
+# Collector configuration used by docker-compose (service hostnames instead of localhost)
+opcua:
+  endpoint: opc.tcp://simulator:4840/plant/
+  namespace_uri: urn:plantdata:riverside:primary-crushing
+  publishing_interval_ms: 1000
+  sampling_interval_ms: 500
+  reconnect_max_seconds: 30
+
+database:
+  url: postgresql://plant:plant@db:5432/plant
+  batch_size: 500
+  flush_seconds: 2.0
+
+buffer:
+  path: /data/collector-buffer.sqlite
+
+tags:
+  - CR101.Running
+  - CR101.State
+  - CR101.FaultCode
+  - CR101.FeedRate
+  - CR101.MotorCurrent
+  - CR101.BearingTemp
+  - CR101.Vibration
+  - CV101.Running
+  - CV101.State
+  - CV101.FaultCode
+  - CV101.BeltSpeed
+  - CV101.MotorCurrent
+  - CV101.Throughput
+  - {name: CV101.TotalTonnes, deadband: 2.0}
+heartbeat_seconds: 900
+
+alarm_limits:
+  CR101.MotorCurrent: {high: 245, high_high: 260}
+  CR101.BearingTemp: {high: 75, high_high: 85}
+  CR101.Vibration: {high: 3.8, high_high: 4.5}
+  CV101.MotorCurrent: {high: 60}
